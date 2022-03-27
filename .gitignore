@@ -15,3 +15,6 @@ contract.wasm*
 # IDEs
 *.iml
 .idea
+
+# VS-Code configuration
+.vscode

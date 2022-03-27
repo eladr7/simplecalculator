@@ -1,21 +1,51 @@
-use schemars::JsonSchema;
+use std::{any::type_name};
 use serde::{Deserialize, Serialize};
-
-use cosmwasm_std::{CanonicalAddr, Storage};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
+use cosmwasm_std::{Storage, ReadonlyStorage, StdResult, StdError, CanonicalAddr,};
+use serde::de::DeserializeOwned;
+use secret_toolkit::serialization::{Bincode2, Serde,};
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use crate::viewing_key::ViewingKey;
 
 pub static CONFIG_KEY: &[u8] = b"config";
+pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct State {
-    pub count: i32,
-    pub owner: CanonicalAddr,
+    pub input_output_size: u16,
+    pub prng_seed: Vec<u8>,
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
-    singleton(storage, CONFIG_KEY)
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CalculationsHistory {
+    pub history: Vec<Vec<u8>>
 }
 
-pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, State> {
-    singleton_read(storage, CONFIG_KEY)
+pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
+    storage.set(key, &Bincode2::serialize(value)?);
+    Ok(())
+}
+
+pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
+    Bincode2::deserialize(
+        &storage
+            .get(key)
+            .ok_or_else(|| StdError::not_found(type_name::<T>()))?,
+    )
+}
+
+pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<T>> {
+    match storage.get(key) {
+        Some(value) => Bincode2::deserialize(&value).map(Some),
+        None => Ok(None),
+    }
+}
+
+pub fn write_viewing_key<S: Storage>(store: &mut S, owner: &CanonicalAddr, key: &ViewingKey) {
+    let mut user_key_store = PrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+    user_key_store.set(owner.as_slice(), &key.to_hashed());
+}
+
+pub fn read_viewing_key<S: Storage>(store: &S, owner: &CanonicalAddr) -> Option<Vec<u8>> {
+    let user_key_store = ReadonlyPrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+    user_key_store.get(owner.as_slice())
 }
