@@ -11,7 +11,6 @@ pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct State {
-    pub input_output_size: u16,
     pub prng_seed: Vec<u8>,
 }
 
