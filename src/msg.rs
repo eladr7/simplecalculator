@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use cosmwasm_std::Uint128;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -10,22 +11,48 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Add {n1: i64, n2: i64},
-    Sub {n1: i64, n2: i64},
-    Mul {n1: i64, n2: i64},
-    Div {n1: i64, n2: i64},
-    Sqrt {n: u128},
+    Add {n1: Uint128, n2: Uint128},
+    Sub {n1: Uint128, n2: Uint128},
+    Mul {n1: Uint128, n2: Uint128},
+    Div {n1: Uint128, n2: Uint128},
+    Sqrt {n: Uint128},
+
+    /// Generates a new viewing key with user supplied entropy
+    GenerateViewingKey {
+        entropy: String,
+        padding: Option<String>,
+    },
 }
 
 /// Responses from handle functions
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleAnswer {
-    Add {n: i64},
-    Sub {n: i64},
-    Mul {n: i64},
-    Div {n: i64},
-    Sqrt {n: u128},
+    Add {
+        n: Option<Uint128>,
+        status: String,
+    },
+    Sub {
+        n: Option<Uint128>,
+        status: String,
+    },
+    Mul {
+        n: Option<Uint128>,
+        status: String,
+    },
+    Div {
+        n: Option<Uint128>,
+        status: String,
+    },
+    Sqrt {
+        n: Option<Uint128>,
+        status: String,
+    },
+
+    /// Return the generated key
+    GenerateViewingKey {
+        key: ViewingKey,
+    },
 }
 
 
@@ -39,7 +66,7 @@ pub enum QueryMsg {
 
         /// steps_back is counted since the last operation performed; e.g. if steps_back is 3,
         /// then the history of the last 3 operations will be returned.
-        steps_back: Option<u16>,
+        steps_back: Option<Uint128>,
     },
 }
 
