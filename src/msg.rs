@@ -1,6 +1,8 @@
+use crate::viewing_key::ViewingKey;
+use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cosmwasm_std::Uint128;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -11,11 +13,25 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Add {n1: Uint128, n2: Uint128},
-    Sub {n1: Uint128, n2: Uint128},
-    Mul {n1: Uint128, n2: Uint128},
-    Div {n1: Uint128, n2: Uint128},
-    Sqrt {n: Uint128},
+    Add {
+        n1: Uint128,
+        n2: Uint128,
+    },
+    Sub {
+        n1: Uint128,
+        n2: Uint128,
+    },
+    Mul {
+        n1: Uint128,
+        n2: Uint128,
+    },
+    Div {
+        n1: Uint128,
+        n2: Uint128,
+    },
+    Sqrt {
+        n: Uint128,
+    },
 
     /// Generates a new viewing key with user supplied entropy
     GenerateViewingKey {
@@ -55,7 +71,6 @@ pub enum HandleAnswer {
     },
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
@@ -71,9 +86,13 @@ pub enum QueryMsg {
 }
 
 impl QueryMsg {
-    pub fn get_validation_params(&self) -> (Vec<&HumanAddr>, ViewingKey) {
+    pub fn get_validation_params(&self) -> (Vec<&HumanAddr>, ViewingKey, Option<Uint128>) {
         match self {
-            Self::GetHistory { address, key, steps_back } => (vec![address], ViewingKey(key.clone()), steps_back),
+            Self::GetHistory {
+                address,
+                key,
+                steps_back,
+            } => (vec![address], ViewingKey(key.clone()), steps_back.clone()),
             _ => panic!("This query type does not require authentication"),
         }
     }
@@ -83,9 +102,11 @@ impl QueryMsg {
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
-    /// Return a status message and the calculations history of the user, if it exists
-    GetHistory {
-        status: String,
-        history: Option<Vec<String>>,
-    },
+    GetHistory(GetHistory),
+}
+
+#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+pub struct GetHistory {
+    pub status: String,
+    pub history: Option<Vec<String>>,
 }
