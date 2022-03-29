@@ -1,16 +1,19 @@
-use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
-    QueryResult, StdError, StdResult, Storage, Uint128,
+use crate::calculations_utils::{
+    calculate_add, calculate_div, calculate_mul, calculate_sqrt, calculate_sub,
+    get_calculation_string, is_add_input_correct, is_div_input_correct, is_mul_input_correct,
+    is_sqrt_input_correct, is_sub_input_correct,
 };
-
 use crate::msg::{GetHistory, HandleAnswer, HandleMsg, InitMsg, QueryAnswer, QueryMsg};
 use crate::state::{
     load, may_load, read_viewing_key, save, write_viewing_key, CalculationsHistory, State,
     CONFIG_KEY,
 };
-
 use crate::utils::{
     bytes_vectors_vector_to_strings_vector, strings_vector_to_bytes_vectors_vector,
+};
+use cosmwasm_std::{
+    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
+    QueryResult, StdError, StdResult, Storage, Uint128,
 };
 
 use crate::viewing_key::{ViewingKey, VIEWING_KEY_SIZE};
@@ -68,57 +71,6 @@ pub fn try_generate_viewing_key<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn is_add_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    let max_half = u128::MAX / 2;
-    if n1 >= max_half && n2 >= max_half {
-        err_msg.push_str("Invalid input: The input numbers are too large");
-        return false;
-    }
-    return true;
-}
-
-fn is_sub_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    if n2 > n1 {
-        err_msg.push_str("Invalid input: The second argument is larger than the first, cannot calculate negative results");
-        return false;
-    }
-    return true;
-}
-
-fn is_mul_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    let max = u128::MAX;
-    if n1 * n2 > max {
-        let max_string: String = max.to_string();
-        err_msg.push_str(
-            &format!(
-            "{} {}",
-            "Invalid input: The multiplication is too large. Cannot calculate results larger than",
-            max_string
-        )
-            .to_string(),
-        );
-        return false;
-    }
-    return true;
-}
-
-fn is_div_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    if n2 == 0 {
-        err_msg.push_str("Invalid input: Cannot devide by zero!");
-        return false;
-    }
-
-    return true;
-}
-
-fn get_calculation_string(n1: Uint128, n2: Uint128, operation: &String, result: Uint128) -> String {
-    n1.to_string() + " " + operation + " " + &n2.to_string() + " = " + &result.to_string()
-}
-
-fn get_sqrt_calculation_string(n: Uint128, operation: String, result: Uint128) -> String {
-    operation + &n.to_string() + " = " + &result.to_string()
-}
-
 fn insert_result<S: Storage, A: Api, Q: Querier>(
     calculation_string: String,
     deps: &mut Extern<S, A, Q>,
@@ -148,22 +100,25 @@ fn insert_result<S: Storage, A: Api, Q: Querier>(
     Ok(())
 }
 
-fn try_add<S: Storage, A: Api, Q: Querier>(
+fn try_calculate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     n1: Uint128,
     n2: Uint128,
+    operation: String,
+    is_input_correct: fn(n1: u128, n2: u128, err_msg: &mut String) -> bool,
+    calculate: fn(n1: Uint128, n2: Uint128) -> StdResult<Uint128>,
 ) -> StdResult<HandleResponse> {
     let mut result: Option<Uint128> = None;
     let mut status = String::new();
     let mut err_msg = String::new();
 
-    if !is_add_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
+    if !is_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
         status = String::from(err_msg);
     } else {
-        result = Some(n1 + n2);
+        result = Some(calculate(n1, n2)?);
         let calculation_string =
-            get_calculation_string(n1, n2, &String::from("+"), result.unwrap());
+            get_calculation_string(n1, n2, &String::from(operation), result.unwrap());
         insert_result(calculation_string, deps, env, &mut status)?;
     }
 
@@ -171,11 +126,28 @@ fn try_add<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![],
-        data: Some(to_binary(&HandleAnswer::Add {
+        data: Some(to_binary(&HandleAnswer::CalculationResult {
             n: result,
             status: status,
         })?),
     })
+}
+
+fn try_add<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    n1: Uint128,
+    n2: Uint128,
+) -> StdResult<HandleResponse> {
+    try_calculate(
+        deps,
+        env,
+        n1,
+        n2,
+        String::from("+"),
+        is_add_input_correct,
+        calculate_add,
+    )
 }
 
 fn try_sub<S: Storage, A: Api, Q: Querier>(
@@ -184,31 +156,15 @@ fn try_sub<S: Storage, A: Api, Q: Querier>(
     n1: Uint128,
     n2: Uint128,
 ) -> StdResult<HandleResponse> {
-    let mut result: Option<Uint128> = None;
-    let mut status = String::new();
-    let mut err_msg = String::new();
-
-    if !is_sub_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
-        status = String::from(err_msg);
-    } else {
-        result = match n1 - n2 {
-            Err(err) => return Err(err.into()),
-            Ok(value) => Some(value),
-        };
-        let calculation_string =
-            get_calculation_string(n1, n2, &String::from("-"), result.unwrap());
-        insert_result(calculation_string, deps, env, &mut status)?;
-    }
-
-    // Return a HandleResponse with the appropriate status message included in the data field
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Sub {
-            n: result,
-            status: status,
-        })?),
-    })
+    try_calculate(
+        deps,
+        env,
+        n1,
+        n2,
+        String::from("-"),
+        is_sub_input_correct,
+        calculate_sub,
+    )
 }
 
 fn try_mul<S: Storage, A: Api, Q: Querier>(
@@ -217,28 +173,15 @@ fn try_mul<S: Storage, A: Api, Q: Querier>(
     n1: Uint128,
     n2: Uint128,
 ) -> StdResult<HandleResponse> {
-    let mut result: Option<Uint128> = None;
-    let mut status = String::new();
-    let mut err_msg = String::new();
-
-    if !is_mul_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
-        status = String::from(err_msg);
-    } else {
-        result = Some(Uint128::from(n1.u128() * n2.u128()));
-        let calculation_string =
-            get_calculation_string(n1, n2, &String::from("*"), result.unwrap());
-        insert_result(calculation_string, deps, env, &mut status)?;
-    }
-
-    // Return a HandleResponse with the appropriate status message included in the data field
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Mul {
-            n: result,
-            status: status,
-        })?),
-    })
+    try_calculate(
+        deps,
+        env,
+        n1,
+        n2,
+        String::from("*"),
+        is_mul_input_correct,
+        calculate_mul,
+    )
 }
 
 fn try_div<S: Storage, A: Api, Q: Querier>(
@@ -247,28 +190,15 @@ fn try_div<S: Storage, A: Api, Q: Querier>(
     n1: Uint128,
     n2: Uint128,
 ) -> StdResult<HandleResponse> {
-    let mut result: Option<Uint128> = None;
-    let mut status = String::new();
-    let mut err_msg = String::new();
-
-    if !is_div_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
-        status = String::from(err_msg);
-    } else {
-        result = Some(Uint128::from(n1.u128() / n2.u128()));
-        let calculation_string =
-            get_calculation_string(n1, n2, &String::from("/"), result.unwrap());
-        insert_result(calculation_string, deps, env, &mut status)?;
-    }
-
-    // Return a HandleResponse with the appropriate status message included in the data field
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Div {
-            n: result,
-            status: status,
-        })?),
-    })
+    try_calculate(
+        deps,
+        env,
+        n1,
+        n2,
+        String::from("*"),
+        is_div_input_correct,
+        calculate_div,
+    )
 }
 
 fn try_sqrt<S: Storage, A: Api, Q: Querier>(
@@ -276,23 +206,15 @@ fn try_sqrt<S: Storage, A: Api, Q: Querier>(
     env: Env,
     n: Uint128,
 ) -> StdResult<HandleResponse> {
-    let mut result: Option<Uint128> = None;
-    let mut status = String::new();
-    let mut err_msg = String::new();
-
-    result = Some(Uint128::from((n.u128() as f64).sqrt() as u128 + 1));
-    let calculation_string = get_sqrt_calculation_string(n, String::from("√"), result.unwrap());
-    insert_result(calculation_string, deps, env, &mut status)?;
-
-    // Return a HandleResponse with the appropriate status message included in the data field
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![],
-        data: Some(to_binary(&HandleAnswer::Sqrt {
-            n: result,
-            status: status,
-        })?),
-    })
+    try_calculate(
+        deps,
+        env,
+        n,
+        Uint128::zero(),
+        String::from("√"),
+        is_sqrt_input_correct,
+        calculate_sqrt,
+    )
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(

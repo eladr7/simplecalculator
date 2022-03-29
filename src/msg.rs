@@ -44,23 +44,7 @@ pub enum HandleMsg {
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleAnswer {
-    Add {
-        n: Option<Uint128>,
-        status: String,
-    },
-    Sub {
-        n: Option<Uint128>,
-        status: String,
-    },
-    Mul {
-        n: Option<Uint128>,
-        status: String,
-    },
-    Div {
-        n: Option<Uint128>,
-        status: String,
-    },
-    Sqrt {
+    CalculationResult {
         n: Option<Uint128>,
         status: String,
     },
