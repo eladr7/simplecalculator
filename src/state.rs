@@ -1,10 +1,10 @@
-use std::{any::type_name};
-use serde::{Deserialize, Serialize};
-use cosmwasm_std::{Storage, ReadonlyStorage, StdResult, StdError, CanonicalAddr,};
-use serde::de::DeserializeOwned;
-use secret_toolkit::serialization::{Bincode2, Serde,};
-use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use crate::viewing_key::ViewingKey;
+use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use secret_toolkit::serialization::{Bincode2, Serde};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use std::any::type_name;
 
 pub static CONFIG_KEY: &[u8] = b"config";
 pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
@@ -16,7 +16,8 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CalculationsHistory {
-    pub history: Vec<Vec<u8>>
+    /// history has the user's calculations history
+    pub history: Vec<Vec<u8>>,
 }
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
@@ -32,7 +33,10 @@ pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) ->
     )
 }
 
-pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<T>> {
+pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(
+    storage: &S,
+    key: &[u8],
+) -> StdResult<Option<T>> {
     match storage.get(key) {
         Some(value) => Bincode2::deserialize(&value).map(Some),
         None => Ok(None),

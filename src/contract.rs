@@ -113,6 +113,8 @@ fn try_calculate<S: Storage, A: Api, Q: Querier>(
     let mut status = String::new();
     let mut err_msg = String::new();
 
+    // I know it's better to unify this method with the calculation itself (same for the tests)
+    // This will also prevent the redundant conversion here to u128.
     if !is_input_correct(n1.u128(), n2.u128(), &mut err_msg) {
         status = String::from(err_msg);
     } else {
@@ -195,7 +197,7 @@ fn try_div<S: Storage, A: Api, Q: Querier>(
         env,
         n1,
         n2,
-        String::from("*"),
+        String::from("/"),
         is_div_input_correct,
         calculate_div,
     )
@@ -217,10 +219,7 @@ fn try_sqrt<S: Storage, A: Api, Q: Querier>(
     )
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     match msg {
         QueryMsg::GetHistory { .. } => authenticated_queries(deps, msg),
     }
@@ -247,7 +246,7 @@ fn authenticated_queries<S: Storage, A: Api, Q: Querier>(
                     address,
                     key,
                     steps_back,
-                } => to_binary(&may_get_history(&deps, &address, steps_back)),
+                } => to_binary(&may_get_history(&deps, &address, steps_back)?),
                 _ => panic!("This query type does not require authentication"),
             };
         }
@@ -261,7 +260,6 @@ fn may_get_history<S: Storage, A: Api, Q: Querier>(
     address: &HumanAddr,
     steps_back: Option<Uint128>,
 ) -> StdResult<GetHistory> {
-    // ) -> StdResult<Binary> {
     let answer = query_read(&deps, &address)?;
     let QueryAnswer::GetHistory(get_history_obj) = answer;
 
@@ -351,77 +349,275 @@ fn get_partial_history(history: &Vec<String>, steps_back: Uint128) -> Vec<String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, from_binary, StdError};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{coins, from_binary};
 
-    #[test]
-    fn proper_initialization() {
+    fn init_helper() -> (
+        StdResult<InitResponse>,
+        Extern<MockStorage, MockApi, MockQuerier>,
+    ) {
         let mut deps = mock_dependencies(20, &[]);
+        let env = mock_env("instantiator", &coins(1000, "token"));
 
-        let msg = InitMsg {
+        let init_msg = InitMsg {
             prng_seed: String::from("waehfjklasd"),
         };
-        let env = mock_env("creator", &coins(1000, "earth"));
 
-        // we can just call .unwrap() to assert this was a success
-        let res = init(&mut deps, env, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        // // it worked, let's query the state
-        // let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        // let value: CountResponse = from_binary(&res).unwrap();
-        // assert_eq!(17, value.count);
+        (init(&mut deps, env, init_msg), deps)
     }
 
-    // #[test]
-    // fn increment() {
-    //     let mut deps = mock_dependencies(20, &coins(2, "token"));
+    fn generate_viewing_key(
+        deps: &mut Extern<cosmwasm_std::MemoryStorage, MockApi, MockQuerier>,
+    ) -> ViewingKey {
+        let msg = HandleMsg::GenerateViewingKey {
+            entropy: String::from("wefhjyr"),
+            padding: None,
+        };
+        let handle_result = handle(deps, mock_env("bob", &[]), msg);
+        assert!(
+            handle_result.is_ok(),
+            "handle() failed: {}",
+            handle_result.err().unwrap()
+        );
+        // Get the viewing key of the reply to HandleMsg::GenerateViewingKey
+        let answer: HandleAnswer = from_binary(&handle_result.unwrap().data.unwrap()).unwrap();
+        let key = match answer {
+            HandleAnswer::GenerateViewingKey { key } => key,
+            _ => panic!("NOPE"),
+        };
+        key
+    }
 
-    //     let msg = InitMsg { count: 17 };
-    //     let env = mock_env("creator", &coins(2, "token"));
-    //     let _res = init(&mut deps, env, msg).unwrap();
+    fn query_history_wrong_vk(deps: Extern<cosmwasm_std::MemoryStorage, MockApi, MockQuerier>) {
+        let wrong_vk_query_response = query(
+            &deps,
+            QueryMsg::GetHistory {
+                address: HumanAddr("bob".to_string()),
+                key: "wrong_vk".to_string(),
+                steps_back: None,
+            },
+        );
+        let error = match wrong_vk_query_response {
+            Ok(_response) => "This line should not be reached!".to_string(),
+            Err(_err) => "Wrong viewing key for this address or viewing key not set".to_string(),
+        };
+        assert_eq!(
+            error,
+            "Wrong viewing key for this address or viewing key not set".to_string()
+        );
+    }
 
-    //     // anyone can increment
-    //     let env = mock_env("anyone", &coins(2, "token"));
-    //     let msg = HandleMsg::Increment {};
-    //     let _res = handle(&mut deps, env, msg).unwrap();
+    fn query_transactions_history(
+        deps: &mut Extern<cosmwasm_std::MemoryStorage, MockApi, MockQuerier>,
+    ) -> Option<Vec<String>> {
+        let vk = generate_viewing_key(deps);
+        let query_response = query(
+            &*deps,
+            QueryMsg::GetHistory {
+                address: HumanAddr("bob".to_string()),
+                key: vk.0,
+                steps_back: None,
+            },
+        )
+        .unwrap();
+        let history = match from_binary(&query_response).unwrap() {
+            GetHistory { status, history } => history,
+            _ => panic!("Unexpected result from query"),
+        };
+        history
+    }
 
-    //     // should increase counter by 1
-    //     let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(18, value.count);
-    // }
-
-    // #[test]
-    // fn reset() {
-    //     let mut deps = mock_dependencies(20, &coins(2, "token"));
-
-    //     let msg = InitMsg { count: 17 };
-    //     let env = mock_env("creator", &coins(2, "token"));
-    //     let _res = init(&mut deps, env, msg).unwrap();
-
-    //     // not anyone can reset
-    //     let unauth_env = mock_env("anyone", &coins(2, "token"));
-    //     let msg = HandleMsg::Reset { count: 5 };
-    //     let res = handle(&mut deps, unauth_env, msg);
-    //     match res {
-    //         Err(StdError::Unauthorized { .. }) => {}
-    //         _ => panic!("Must return unauthorized error"),
-    //     }
-
-    //     // only the original creator can reset the counter
-    //     let auth_env = mock_env("creator", &coins(2, "token"));
-    //     let msg = HandleMsg::Reset { count: 5 };
-    //     let _res = handle(&mut deps, auth_env, msg).unwrap();
-
-    //     // should now be 5
-    //     let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(5, value.count);
-    // }
     #[test]
-    fn test_is_input_correct_good_input() {
-        /// input: deps, env, n1, n2
-        unimplemented!();
+    fn test_init_sanity() {
+        let (init_result, _deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Todo: Can add a ReadonlyConfig structure, then a verification on State
+    }
+
+    #[test]
+    fn test_generate_viewing_key() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Compute the viewing key
+        let key = generate_viewing_key(&mut deps);
+
+        // Get the viewing key from the storage
+        let bob_canonical = deps
+            .api
+            .canonical_address(&HumanAddr("bob".to_string()))
+            .unwrap();
+        let saved_vk = read_viewing_key(&deps.storage, &bob_canonical).unwrap();
+
+        // Verify that the key in the storage is the same as the key from HandleAnswer::GenerateViewingKey
+        assert!(key.check_viewing_key(saved_vk.as_slice()));
+    }
+
+    #[test]
+    fn test_try_add() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Perform an Add operation
+        let env = mock_env("bob", &coins(2, "token"));
+        let n1: u128 = 3;
+        let n2: u128 = 5;
+        let msg = HandleMsg::Add {
+            n1: Uint128::from(n1),
+            n2: Uint128::from(n2),
+        };
+        let _res = handle(&mut deps, env, msg).unwrap();
+
+        // Query the user's transactions history using their viewing key
+        let history = query_transactions_history(&mut deps);
+
+        // Verify the transactions history
+        for i in history.unwrap() {
+            assert_eq!("3 + 5 = 8".to_string(), i);
+        }
+
+        // Now try to hack into bob's account using the wrong key - and fail
+        query_history_wrong_vk(deps);
+    }
+
+    #[test]
+    fn test_try_sub() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Perform an Add operation
+        let env = mock_env("bob", &coins(2, "token"));
+        let n1: u128 = 20;
+        let n2: u128 = 5;
+        let msg = HandleMsg::Sub {
+            n1: Uint128::from(n1),
+            n2: Uint128::from(n2),
+        };
+        let _res = handle(&mut deps, env, msg).unwrap();
+
+        // Query the user's transactions history using their viewing key
+        let history = query_transactions_history(&mut deps);
+
+        // Verify the transactions history
+        for i in history.unwrap() {
+            assert_eq!("20 - 5 = 15".to_string(), i);
+        }
+
+        // Now try to hack into bob's account using the wrong key - and fail
+        query_history_wrong_vk(deps);
+    }
+
+    #[test]
+    fn test_try_mul() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Perform an Add operation
+        let env = mock_env("bob", &coins(2, "token"));
+        let n1: u128 = 20;
+        let n2: u128 = 5;
+        let msg = HandleMsg::Mul {
+            n1: Uint128::from(n1),
+            n2: Uint128::from(n2),
+        };
+        let _res = handle(&mut deps, env, msg).unwrap();
+
+        // Query the user's transactions history using their viewing key
+        let history = query_transactions_history(&mut deps);
+
+        // Verify the transactions history
+        for i in history.unwrap() {
+            assert_eq!("20 * 5 = 100".to_string(), i);
+        }
+
+        // Now try to hack into bob's account using the wrong key - and fail
+        query_history_wrong_vk(deps);
+    }
+
+    #[test]
+    fn test_try_div() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Perform an Add operation
+        let env = mock_env("bob", &coins(2, "token"));
+        let n1: u128 = 20;
+        let n2: u128 = 5;
+        let msg = HandleMsg::Div {
+            n1: Uint128::from(n1),
+            n2: Uint128::from(n2),
+        };
+        let _res = handle(&mut deps, env, msg).unwrap();
+
+        // Query the user's transactions history using their viewing key
+        let history = query_transactions_history(&mut deps);
+
+        // Verify the transactions history
+        for i in history.unwrap() {
+            assert_eq!("20 / 5 = 4".to_string(), i);
+        }
+
+        // Now try to hack into bob's account using the wrong key - and fail
+        query_history_wrong_vk(deps);
+    }
+
+    #[test]
+    fn test_try_sqrt() {
+        // Initialize the contract
+        let (init_result, mut deps) = init_helper();
+        assert!(
+            init_result.is_ok(),
+            "Init failed: {}",
+            init_result.err().unwrap()
+        );
+
+        // Perform an Add operation
+        let env = mock_env("bob", &coins(2, "token"));
+        let n: u128 = 121;
+        let msg = HandleMsg::Sqrt {
+            n: Uint128::from(n),
+        };
+        let _res = handle(&mut deps, env, msg).unwrap();
+
+        // Query the user's transactions history using their viewing key
+        let history = query_transactions_history(&mut deps);
+
+        // Verify the transactions history
+        for i in history.unwrap() {
+            assert_eq!("√121 = 11".to_string(), i);
+        }
+
+        // Now try to hack into bob's account using the wrong key - and fail
+        query_history_wrong_vk(deps);
     }
 }

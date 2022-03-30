@@ -24,8 +24,8 @@ pub fn strings_vector_to_bytes_vectors_vector(strings_vector: Vec<String>) -> Ve
 
 pub fn bytes_vectors_vector_to_strings_vector(bytes_vectors_vector: Vec<Vec<u8>>) -> Vec<String> {
     let mut strings_vector: Vec<String> = Vec::new();
-    for i in &bytes_vectors_vector {
-        strings_vector.push(format!("{:?}", &i));
+    for i in bytes_vectors_vector {
+        strings_vector.push(String::from_utf8(i).unwrap());
     }
     strings_vector
 }
