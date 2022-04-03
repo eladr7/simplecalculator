@@ -7,7 +7,6 @@ const {
 
 const axios = require("axios");
 
-
 async function getFromFaucet(address) {
   await axios.get(`http://localhost:5000/faucet?address=${address}`);
 }
@@ -15,14 +14,14 @@ async function getFromFaucet(address) {
 async function fillUpFromFaucet(client, targetBalance) {
   let balance = await getScrtBalance(client);
   while (Number(balance) < targetBalance) {
-    try{
+    try {
       await getFromFaucet(client.senderAddress);
     } catch (e) {
       console.error(`failed to get tokens from faucet: ${e}`);
     }
     balance = await getScrtBalance(client);
   }
-  console.error(`got tokens from faucet: ${balance}`)
+  console.error(`got tokens from faucet: ${balance}`);
 }
 
 const customFees = {
@@ -45,7 +44,7 @@ async function newClient(mnemonic, rest_endpoint) {
   const pubkey = encodeSecp256k1Pubkey(signingPen.pubkey);
   const accAddress = pubkeyToAddress(pubkey, "secret");
 
-  console.error(`acc: ${accAddress}`)
+  console.error(`acc: ${accAddress}`);
 
   return new SigningCosmWasmClient(
     rest_endpoint,
@@ -59,10 +58,17 @@ async function newClient(mnemonic, rest_endpoint) {
 async function getScrtBalance(client) {
   let balanceResponse = await client.getAccount(client.senderAddress);
   const scrtBalanceAfter =
-    (balanceResponse?.hasOwnProperty("balance") && balanceResponse.balance.length > 0)
-    ? balanceResponse.balance[0]
-    : {amount: 0};
+    balanceResponse?.hasOwnProperty("balance") &&
+    balanceResponse.balance.length > 0
+      ? balanceResponse.balance[0]
+      : { amount: 0 };
   return scrtBalanceAfter.amount;
 }
 
-module.exports = { getFromFaucet, fillUpFromFaucet, customFees, newClient, getScrtBalance };
+module.exports = {
+  getFromFaucet,
+  fillUpFromFaucet,
+  customFees,
+  newClient,
+  getScrtBalance,
+};

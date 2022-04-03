@@ -161,7 +161,7 @@ let test_suite = async () => {
   const height = await secretNetwork.getHeight();
   console.log("height: ", height);
 
-  if (chainId === "secretdev-1") {
+  if (chainId === "pulsar-2") {
     await fillUpFromFaucet(secretNetwork, 10_000_000);
   }
 
@@ -181,22 +181,22 @@ let test_suite = async () => {
   );
   console.log(`Contract address is : ${contractAddress}`);
 
-  // let [mnemonic, accAddress, __] = await createAccount(REST_ENDPOINT);
-  // let userNetwork = await newClient(mnemonic, REST_ENDPOINT);
+  let [mnemonic, accAddress, __] = await createAccount(REST_ENDPOINT);
+  let userNetwork = await newClient(mnemonic, REST_ENDPOINT);
 
-  // const DEPOSIT_AMOUNT = 10_000_000;
+  const DEPOSIT_AMOUNT = 10_000_000;
 
-  // await secretNetwork.sendTokens(
-  //   accAddress,
-  //   [{ amount: String(DEPOSIT_AMOUNT), denom: "uscrt" }],
-  //   "",
-  //   {
-  //     amount: [{ amount: "50000", denom: "uscrt" }],
-  //     gas: "200000",
-  //   }
-  // );
+  await secretNetwork.sendTokens(
+    accAddress,
+    [{ amount: String(DEPOSIT_AMOUNT), denom: "uscrt" }],
+    "",
+    {
+      amount: [{ amount: "50000", denom: "uscrt" }],
+      gas: "200000",
+    }
+  );
 
-  // console.log(`\tsent 10scrt from main account to user`);
+  console.log(`\tsent 10scrt from main account to user`);
 
   // tokens = await viewTokens(userNetwork, contractAddress, accAddress);
   // console.log(`Account balance: ${JSON.stringify(tokens)}`);

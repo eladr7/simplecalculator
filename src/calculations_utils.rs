@@ -1,5 +1,4 @@
 use cosmwasm_std::{StdResult, Uint128};
-use num::integer::Roots;
 
 pub fn is_add_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
     let max_half = u128::MAX / 2;
@@ -67,8 +66,46 @@ pub fn calculate_div(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
 }
 
 pub fn calculate_sqrt(n1: Uint128, _n2: Uint128) -> StdResult<Uint128> {
-    // Ok(Uint128::from((n1.u128() as f64).sqrt() as u128))
-    Ok(Uint128::from((n1.u128()).sqrt() as u128))
+    let n1_u128 = n1.u128();
+    let mut left: u128 = 0;
+    let mut right: u128 = n1_u128;
+    let mut middle: u128;
+    let mut pow: u128;
+
+    if n1_u128 == 0 || n1_u128 == 1 {
+        return Ok(n1);
+    }
+
+    // Perform a form of binary search to find the sqrt of n1.
+    // Notice that the result is rounded down. e.g. sqrt(70) = 8.
+    //
+    // * This calculation can be more efficient, but since it's still O(log(n1)), no need to go
+    // further in this exercise.
+    while left < right {
+        middle = (left + right) / 2;
+
+        if left == middle {
+            if (left + 1) * (left + 1) > n1_u128 {
+                return Ok(Uint128::from(left));
+            }
+            return Ok(Uint128::from(left + 1));
+        }
+
+        pow = middle * middle;
+        if pow < n1_u128 {
+            left = middle;
+            continue;
+        }
+
+        if pow > n1_u128 {
+            right = middle - 1;
+            continue;
+        }
+
+        return Ok(Uint128::from(middle));
+    }
+
+    Ok(Uint128::from(left))
 }
 
 pub fn get_calculation_string(
