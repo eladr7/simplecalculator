@@ -2,6 +2,10 @@
 /target
 Cargo.lock
 contract.wasm*
+artifacts/
+contracts/*/schema
+node_modules
+package-lock.json
 
 # Cargo+Git helper file (https://github.com/rust-lang/cargo/blob/0.44.1/src/cargo/sources/git/utils.rs#L320-L327)
 .cargo-ok
@@ -18,3 +22,5 @@ contract.wasm*
 
 # VS-Code configuration
 .vscode
+
+.env

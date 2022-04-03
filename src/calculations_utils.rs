@@ -1,4 +1,5 @@
 use cosmwasm_std::{StdResult, Uint128};
+use num::integer::Roots;
 
 pub fn is_add_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
     let max_half = u128::MAX / 2;
@@ -66,7 +67,8 @@ pub fn calculate_div(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
 }
 
 pub fn calculate_sqrt(n1: Uint128, _n2: Uint128) -> StdResult<Uint128> {
-    Ok(Uint128::from((n1.u128() as f64).sqrt() as u128))
+    // Ok(Uint128::from((n1.u128() as f64).sqrt() as u128))
+    Ok(Uint128::from((n1.u128()).sqrt() as u128))
 }
 
 pub fn get_calculation_string(
