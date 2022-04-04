@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2016",
     "module": "commonjs",
-    "lib": ["es6"],
+    "lib": ["es6", "DOM"],
     "allowJs": true,
     "outDir": "./build",
     "strict": true,
@@ -10,5 +10,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "build", "tests"]
+  "exclude": ["node_modules", "build", "__tests__"]
 }
