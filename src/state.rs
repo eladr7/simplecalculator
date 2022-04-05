@@ -1,13 +1,13 @@
-use crate::viewing_key::ViewingKey;
 use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use secret_toolkit::serialization::{Bincode2, Serde};
+use secret_toolkit::storage::{AppendStore, AppendStoreMut};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::type_name;
 
 pub static CONFIG_KEY: &[u8] = b"config";
-pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
+const PREFIX_CALCULATIONS: &[u8] = b"calculations";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct State {
@@ -17,12 +17,28 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CalculationsHistory {
     /// history has the user's calculations history
-    pub history: Vec<Vec<u8>>,
+    pub history: Vec<u8>,
+}
+
+impl CalculationsHistory {
+    pub fn into_humanized(self) -> StdResult<String> {
+        Ok(String::from_utf8(self.history).unwrap())
+    }
 }
 
 pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) -> StdResult<()> {
     storage.set(key, &Bincode2::serialize(value)?);
     Ok(())
+}
+
+pub fn save_calculation<S: Storage>(storage: &mut S, key: &[u8], value: &str) -> StdResult<()> {
+    let mut storage = PrefixedStorage::multilevel(&[PREFIX_CALCULATIONS, key], storage);
+    let mut storage = AppendStoreMut::attach_or_create(&mut storage)?;
+    // storage.push(&Bincode2::serialize(value)?)
+    storage.push(&value.to_string())
+
+    // storage.set(key, &Bincode2::serialize(value)?);
+    // Ok(())
 }
 
 pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
@@ -43,12 +59,45 @@ pub fn may_load<T: DeserializeOwned, S: ReadonlyStorage>(
     }
 }
 
-pub fn write_viewing_key<S: Storage>(store: &mut S, owner: &CanonicalAddr, key: &ViewingKey) {
-    let mut user_key_store = PrefixedStorage::new(PREFIX_VIEWING_KEY, store);
-    user_key_store.set(owner.as_slice(), &key.to_hashed());
-}
+pub fn get_transfers<S: ReadonlyStorage>(
+    storage: &S,
+    for_address: &CanonicalAddr,
+    page: u32,
+    page_size: u32,
+) -> StdResult<(Vec<String>, String)> {
+    let store = ReadonlyPrefixedStorage::multilevel(
+        &[PREFIX_CALCULATIONS, for_address.as_slice()],
+        storage,
+    );
 
-pub fn read_viewing_key<S: Storage>(store: &S, owner: &CanonicalAddr) -> Option<Vec<u8>> {
-    let user_key_store = ReadonlyPrefixedStorage::new(PREFIX_VIEWING_KEY, store);
-    user_key_store.get(owner.as_slice())
+    // Try to access the storage of transfers for the account.
+    // If it doesn't exist yet, return an empty list of transfers.
+    let store = AppendStore::<CalculationsHistory, _, _>::attach(&store);
+    let store = if let Some(result) = store {
+        result?
+    } else {
+        return Ok((vec![], "No calculations history".to_string()));
+    };
+
+    // Take `page_size` txs starting from the latest tx, potentially skipping `page * page_size`
+    // txs from the start.
+    let calculations_history_iter = store
+        .iter()
+        .rev()
+        .skip((page * page_size) as _)
+        .take(page_size as _);
+
+    // The `and_then` here flattens the `StdResult<StdResult<RichTx>>` to an `StdResult<RichTx>`
+    let calculations_history: StdResult<Vec<String>> = calculations_history_iter
+        .map(|history| {
+            history
+                .map(|history| history.into_humanized())
+                .and_then(|x| x)
+        })
+        .collect();
+
+    Ok((
+        calculations_history.unwrap(),
+        "Calculations history present".to_string(),
+    ))
 }

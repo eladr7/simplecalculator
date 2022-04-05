@@ -13,19 +13,3 @@ pub fn create_hashed_password(s1: &str) -> [u8; VIEWING_KEY_SIZE] {
         .try_into()
         .expect("Wrong password length")
 }
-
-pub fn strings_vector_to_bytes_vectors_vector(strings_vector: Vec<String>) -> Vec<Vec<u8>> {
-    let mut bytes_vectors_vector: Vec<Vec<u8>> = Vec::new();
-    for i in &strings_vector {
-        bytes_vectors_vector.push(i.as_bytes().to_vec());
-    }
-    bytes_vectors_vector
-}
-
-pub fn bytes_vectors_vector_to_strings_vector(bytes_vectors_vector: Vec<Vec<u8>>) -> Vec<String> {
-    let mut strings_vector: Vec<String> = Vec::new();
-    for i in bytes_vectors_vector {
-        strings_vector.push(String::from_utf8(i).unwrap());
-    }
-    strings_vector
-}

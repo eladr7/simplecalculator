@@ -1,15 +1,18 @@
 use std::fmt;
 
+use cosmwasm_std::ReadonlyStorage;
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Env;
+use cosmwasm_std::{CanonicalAddr, Env, Storage};
 use secret_toolkit::crypto::{sha_256, Prng};
 
 use crate::utils::{create_hashed_password, ct_slice_compare};
 
 pub const VIEWING_KEY_SIZE: usize = 32;
 pub const VIEWING_KEY_PREFIX: &str = "api_key_";
+pub const PREFIX_VIEWING_KEY: &[u8] = b"viewingkey";
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]
 pub struct ViewingKey(pub String);
@@ -27,7 +30,7 @@ impl ViewingKey {
         let mut rng_entropy = Vec::with_capacity(entropy_len);
         rng_entropy.extend_from_slice(&env.block.height.to_be_bytes());
         rng_entropy.extend_from_slice(&env.block.time.to_be_bytes());
-        rng_entropy.extend_from_slice(&env.message.sender.0.as_bytes());
+        rng_entropy.extend_from_slice(env.message.sender.0.as_bytes());
         rng_entropy.extend_from_slice(entropy);
 
         let mut rng = Prng::new(seed, &rng_entropy);
@@ -45,6 +48,16 @@ impl ViewingKey {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+
+    pub fn write_viewing_key<S: Storage>(store: &mut S, owner: &CanonicalAddr, key: &ViewingKey) {
+        let mut user_key_store = PrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+        user_key_store.set(owner.as_slice(), &key.to_hashed());
+    }
+
+    pub fn read_viewing_key<S: Storage>(store: &S, owner: &CanonicalAddr) -> Option<Vec<u8>> {
+        let user_key_store = ReadonlyPrefixedStorage::new(PREFIX_VIEWING_KEY, store);
+        user_key_store.get(owner.as_slice())
     }
 }
 

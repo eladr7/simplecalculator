@@ -1,68 +1,32 @@
-use cosmwasm_std::{StdResult, Uint128};
-
-pub fn is_add_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    let max_half = u128::MAX / 2;
-    if n1 >= max_half && n2 >= max_half {
-        err_msg.push_str("Invalid input: The input numbers are too large");
-        return false;
-    }
-    return true;
-}
-
-pub fn is_sub_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    if n2 > n1 {
-        err_msg.push_str("Invalid input: The second argument is larger than the first, cannot calculate negative results");
-        return false;
-    }
-    return true;
-}
-
-pub fn is_mul_input_correct(n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    let max = u128::MAX;
-    if (max / n1) < n2 {
-        let max_string: String = max.to_string();
-        err_msg.push_str(
-            &format!(
-            "{} {}",
-            "Invalid input: The multiplication is too large. Cannot calculate results larger than",
-            max_string
-        )
-            .to_string(),
-        );
-        return false;
-    }
-    return true;
-}
-
-pub fn is_div_input_correct(_n1: u128, n2: u128, err_msg: &mut String) -> bool {
-    if n2 == 0 {
-        err_msg.push_str("Invalid input: Cannot devide by zero!");
-        return false;
-    }
-
-    return true;
-}
-
-pub fn is_sqrt_input_correct(_n1: u128, _n2: u128, _err_msg: &mut String) -> bool {
-    // Always true since the input only has to be positive, which is enforced by the Uint128
-    // type of input.
-    return true;
-}
+use cosmwasm_std::{StdError, StdResult, Uint128};
+pub type ArithmeticCalculation = fn(n1: Uint128, n2: Uint128) -> StdResult<Uint128>;
 
 pub fn calculate_add(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
-    Ok(Uint128::from(n1.u128() + n2.u128()))
+    n1.u128()
+        .checked_add(n2.u128())
+        .ok_or_else(|| StdError::generic_err("Invalid input: The input numbers are too large"))
+        .map(Uint128)
 }
 
 pub fn calculate_sub(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
-    Ok(Uint128::from(n1.u128() - n2.u128()))
+    n1.u128()
+    .checked_sub(n2.u128())
+    .ok_or_else(|| StdError::generic_err("Invalid input: The second argument is larger than the first, cannot calculate negative results"))
+    .map(Uint128)
 }
 
 pub fn calculate_mul(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
-    Ok(Uint128::from(n1.u128() * n2.u128()))
+    n1.u128()
+    .checked_mul(n2.u128())
+    .ok_or_else(|| StdError::generic_err("Invalid input: The multiplication is too large. Cannot calculate results larger than"))
+    .map(Uint128)
 }
 
 pub fn calculate_div(n1: Uint128, n2: Uint128) -> StdResult<Uint128> {
-    Ok(Uint128::from(n1.u128() / n2.u128()))
+    n1.u128()
+        .checked_div(n2.u128())
+        .ok_or_else(|| StdError::generic_err("Invalid input: Cannot devide by zero!"))
+        .map(Uint128)
 }
 
 pub fn calculate_sqrt(n1: Uint128, _n2: Uint128) -> StdResult<Uint128> {
@@ -111,7 +75,7 @@ pub fn calculate_sqrt(n1: Uint128, _n2: Uint128) -> StdResult<Uint128> {
 pub fn get_calculation_string(
     n1: Uint128,
     n2: Uint128,
-    operation: &String,
+    operation: &str,
     result: Uint128,
 ) -> String {
     if operation == "√" {
@@ -119,89 +83,6 @@ pub fn get_calculation_string(
     }
 
     n1.to_string() + " " + operation + " " + &n2.to_string() + " = " + &result.to_string()
-}
-
-#[test]
-fn test_add_input_correct() {
-    let mut err_msg = String::new();
-    let n1: u128 = u128::MAX / 2;
-    let n2: u128 = (u128::MAX / 2) - 1;
-    let input_correct = is_add_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(true, input_correct);
-    assert_eq!("", err_msg);
-}
-
-#[test]
-fn test_add_input_too_large() {
-    let mut err_msg = String::new();
-    let n1: u128 = (u128::MAX / 2) + 1;
-    let n2: u128 = u128::MAX / 2;
-    let input_correct = is_add_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(false, input_correct);
-    assert_eq!("Invalid input: The input numbers are too large", err_msg);
-}
-
-#[test]
-fn test_sub_input_correct() {
-    let mut err_msg = String::new();
-    let n1: u128 = 15;
-    let n2: u128 = 15;
-    let input_correct = is_sub_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(true, input_correct);
-    assert_eq!("", err_msg);
-}
-
-#[test]
-fn test_sub_input_negative_result() {
-    let mut err_msg = String::new();
-    let n1: u128 = 15;
-    let n2: u128 = 16;
-    let input_correct = is_sub_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(false, input_correct);
-    assert_eq!("Invalid input: The second argument is larger than the first, cannot calculate negative results", err_msg);
-}
-
-#[test]
-fn test_mul_input_correct() {
-    let mut err_msg = String::new();
-    let n1: u128 = u128::MAX / 2;
-    let n2: u128 = 1;
-    let input_correct = is_mul_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(true, input_correct);
-    assert_eq!("", err_msg);
-}
-
-#[test]
-fn test_mul_input_too_large_result() {
-    let mut err_msg = String::new();
-    let n1: u128 = u128::MAX / 2;
-    let n2: u128 = 3;
-    let input_correct = is_mul_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(false, input_correct);
-    assert_eq!(
-        "Invalid input: The multiplication is too large. Cannot calculate results larger than 340282366920938463463374607431768211455",
-        err_msg
-    );
-}
-
-#[test]
-fn test_div_input_correct() {
-    let mut err_msg = String::new();
-    let n1: u128 = u128::MAX / 2;
-    let n2: u128 = (u128::MAX / 2) - 1;
-    let input_correct = is_div_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(true, input_correct);
-    assert_eq!("", err_msg);
-}
-
-#[test]
-fn test_div_input_division_by_zero() {
-    let mut err_msg = String::new();
-    let n1: u128 = u128::MAX / 2;
-    let n2: u128 = 0;
-    let input_correct = is_div_input_correct(n1, n2, &mut err_msg);
-    assert_eq!(false, input_correct);
-    assert_eq!("Invalid input: Cannot devide by zero!", err_msg);
 }
 
 #[test]

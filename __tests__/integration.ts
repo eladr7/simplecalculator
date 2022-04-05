@@ -69,7 +69,7 @@ async function performCreateViewingKey(secretjs: SecretNetworkClient, contractAd
       contract: contractAddress,
       // codeHash,
       msg: {
-        generate_viewing_key: {
+        create_viewing_key: {
           entropy: "bla bla",
         },
       },
@@ -79,9 +79,9 @@ async function performCreateViewingKey(secretjs: SecretNetworkClient, contractAd
     }
   );
   expect(fromUtf8(txExec.data[0])).toContain(
-    '{"generate_viewing_key":{"key":"'
+    '{"create_viewing_key":{"key":"'
   );
-  const viewingKey = JSON.parse(fromUtf8(txExec.data[0])).generate_viewing_key.key;
+  const viewingKey = JSON.parse(fromUtf8(txExec.data[0])).create_viewing_key.key;
   return viewingKey;
 }
 
@@ -93,7 +93,7 @@ async function performCalculation(contractAddress: string, secretjs: SecretNetwo
         sender: accounts[0].address,
         contract: contractAddress,
         // codeHash, // Test MsgExecuteContract without codeHash
-        msg: { [operation]: { n: num1 } },
+        msg: { [operation]: num1 },
         sentFunds: [],
       });
       break;
@@ -102,7 +102,7 @@ async function performCalculation(contractAddress: string, secretjs: SecretNetwo
         sender: accounts[0].address,
         contract: contractAddress,
         // codeHash, // Test MsgExecuteContract without codeHash
-        msg: { [operation]: { n1: num1, n2: num2 } },
+        msg: { [operation]: [num1, num2] },
         sentFunds: [],
       });
   }
@@ -204,6 +204,7 @@ afterAll(async () => {
 describe("tx.compute and query.compute", () => {
   let contractAddress: string;
   let contractCodeHash: string;
+  let viewingKey: string;
 
   beforeAll(async () => {
     const { secretjs } = accounts[0];
@@ -251,6 +252,8 @@ describe("tx.compute and query.compute", () => {
     expect(txInit.code).toBe(0);
 
     contractAddress = getValueFromRawLog(txInit.rawLog, "wasm.contract_address");
+
+    viewingKey = await performCreateViewingKey(secretjs, contractAddress);
   });
 
   test("Perform Add and query results using a viewing key", async () => {
@@ -258,12 +261,10 @@ describe("tx.compute and query.compute", () => {
 
     await performCalculation(contractAddress, secretjs, "add", "2", "3");
 
-    const viewingKey = await performCreateViewingKey(secretjs, contractAddress);
-
     const result = (await secretjs.query.compute.queryContract({
       address: contractAddress,
       codeHash: contractCodeHash,
-      query: { get_history: {address: accounts[0].address, key: viewingKey} },
+      query: { get_history: {address: accounts[0].address, key: viewingKey, page_size: 1} },
     })) as Result;
 
     expect(result).toStrictEqual(
@@ -277,18 +278,15 @@ describe("tx.compute and query.compute", () => {
   test("Perform Sub and query results using a viewing key", async () => {
     const { secretjs } = accounts[0];
 
-
     await performCalculation(contractAddress, secretjs, "sub", "15", "4");
-
-    const viewingKey = await performCreateViewingKey(secretjs, contractAddress);
 
     const result = (await secretjs.query.compute.queryContract({
       address: contractAddress,
       codeHash: contractCodeHash,
-      query: { get_history: {address: accounts[0].address, key: viewingKey} },
+      query: { get_history: {address: accounts[0].address, key: viewingKey, page_size: 2} },
     })) as Result;
 
-    expect(result.history[1]).toEqual("15 - 4 = 11")
+    expect(result.history[0]).toEqual("15 - 4 = 11")
   });
 
   test("Perform Mul and query results using a viewing key", async () => {
@@ -296,44 +294,38 @@ describe("tx.compute and query.compute", () => {
 
     await performCalculation(contractAddress, secretjs, "mul", "20", "7");
 
-    const viewingKey = await performCreateViewingKey(secretjs, contractAddress);
-
     const result = (await secretjs.query.compute.queryContract({
       address: contractAddress,
       codeHash: contractCodeHash,
-      query: { get_history: {address: accounts[0].address, key: viewingKey} },
+      query: { get_history: {address: accounts[0].address, key: viewingKey, page_size: 3} },
     })) as Result;
 
-    expect(result.history[2]).toEqual("20 * 7 = 140")
+    expect(result.history[0]).toEqual("20 * 7 = 140")
   });
 
   test("Perform Div and query results using a viewing key", async () => {
     const { secretjs } = accounts[0];
     await performCalculation(contractAddress, secretjs, "div", "20", "6");
 
-    const viewingKey = await performCreateViewingKey(secretjs, contractAddress);
-
     const result = (await secretjs.query.compute.queryContract({
       address: contractAddress,
       codeHash: contractCodeHash,
-      query: { get_history: {address: accounts[0].address, key: viewingKey} },
+      query: { get_history: {address: accounts[0].address, key: viewingKey, page_size: 4} },
     })) as Result;
 
-    expect(result.history[3]).toEqual("20 / 6 = 3")
+    expect(result.history[0]).toEqual("20 / 6 = 3")
   });
 
   test("Perform Sqrt and query results using a viewing key", async () => {
     const { secretjs } = accounts[0];
     await performCalculation(contractAddress, secretjs, "sqrt", "70");
 
-    const viewingKey = await performCreateViewingKey(secretjs, contractAddress);
-
     const result = (await secretjs.query.compute.queryContract({
       address: contractAddress,
       codeHash: contractCodeHash,
-      query: { get_history: {address: accounts[0].address, key: viewingKey} },
+      query: { get_history: {address: accounts[0].address, key: viewingKey, page_size: 5} },
     })) as Result;
 
-    expect(result.history[4]).toEqual("√70 = 8")
+    expect(result.history[0]).toEqual("√70 = 8")
   });
 });
