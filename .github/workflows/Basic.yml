@@ -38,7 +38,7 @@ jobs:
       - name: Setup node.js env
         uses: actions/setup-node@v2
         with:
-          node-version: "17"
+          node-version: "16.14.0"
 
       - name: "Pull docker testnet image"
         run: docker pull enigmampc/secret-network-sw-dev:v1.2.2-1
