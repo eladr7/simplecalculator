@@ -1,5 +1,6 @@
 use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use schemars::JsonSchema;
 use secret_toolkit::serialization::{Bincode2, Serde};
 use secret_toolkit::storage::{AppendStore, AppendStoreMut};
 use serde::de::DeserializeOwned;
@@ -9,18 +10,18 @@ use std::any::type_name;
 pub static CONFIG_KEY: &[u8] = b"config";
 const PREFIX_CALCULATIONS: &[u8] = b"calculations";
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub prng_seed: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct CalculationsHistory {
+pub struct CalculationHistory {
     /// history has the user's calculations history
     pub history: Vec<u8>,
 }
 
-impl CalculationsHistory {
+impl CalculationHistory {
     pub fn into_humanized(self) -> StdResult<String> {
         Ok(String::from_utf8(self.history).unwrap())
     }
@@ -34,11 +35,7 @@ pub fn save<T: Serialize, S: Storage>(storage: &mut S, key: &[u8], value: &T) ->
 pub fn save_calculation<S: Storage>(storage: &mut S, key: &[u8], value: &str) -> StdResult<()> {
     let mut storage = PrefixedStorage::multilevel(&[PREFIX_CALCULATIONS, key], storage);
     let mut storage = AppendStoreMut::attach_or_create(&mut storage)?;
-    // storage.push(&Bincode2::serialize(value)?)
     storage.push(&value.to_string())
-
-    // storage.set(key, &Bincode2::serialize(value)?);
-    // Ok(())
 }
 
 pub fn load<T: DeserializeOwned, S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<T> {
@@ -72,7 +69,7 @@ pub fn get_transfers<S: ReadonlyStorage>(
 
     // Try to access the storage of transfers for the account.
     // If it doesn't exist yet, return an empty list of transfers.
-    let store = AppendStore::<CalculationsHistory, _, _>::attach(&store);
+    let store = AppendStore::<CalculationHistory, _, _>::attach(&store);
     let store = if let Some(result) = store {
         result?
     } else {

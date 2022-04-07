@@ -5,7 +5,6 @@ on: [push, pull_request]
 name: Basic
 
 jobs:
-
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -17,7 +16,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.43.1
+          toolchain: 1.46.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -25,7 +24,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: unit-test
-          args: --locked
         env:
           RUST_BACKTRACE: 1
 
@@ -37,12 +35,19 @@ jobs:
         env:
           RUSTFLAGS: "-C link-arg=-s"
 
-      - name: Run integration tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: integration-test
-          args: --locked
+      # - name: Setup node.js env
+      #   uses: actions/setup-node@v2
+      #   with:
+      #     node-version: "17"
 
+      # - name: "Pull docker testnet image"
+      #   run: docker pull enigmampc/secret-network-sw-dev:v1.2.2-1
+      # - name: Install npm dependencies
+      #   run: npm install
+      # - name: Compile the contract to a .wasm.gz file
+      #   run: cargo wasm && docker run --rm -v "$(pwd)":/contract --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry enigmampc/secret-contract-optimizer:1.0.6
+      # - name: Run tests
+      #   run: npm run test
 
   lints:
     name: Lints
